@@ -27,7 +27,9 @@ jobs:
             git reset --hard origin/main
 
             cd frontend
-            npm ci
+            node --version
+            npm --version
+            npm ci --include=optional --no-audit --no-fund
             npm run build
             cd ..
 
