@@ -1,102 +1,70 @@
 services:
   db:
     image: postgres:18
-    container_name: db
-    environment:
-      POSTGRES_DB: app
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: password
+    env_file:
+      - ${MINIAPP_ENV_FILE:-/opt/miniapp/.env}
     volumes:
       - postgres_data:/var/lib/postgresql
-    ports:
-      - "5433:5432"
-    networks:
-      - app-network
-  adminer:
-    image: adminer:latest
-    container_name: adminer
-    depends_on:
-      - db
-    ports:
-      - "8080:8080"
-    networks:
-      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    env_file:
+      - ${MINIAPP_ENV_FILE:-/opt/miniapp/.env}
+    volumes:
+      - minio_data:/data
     restart: unless-stopped
 
+  migration:
+    build: ./backend/main_api
+    command: alembic upgrade head
+    env_file:
+      - ${MINIAPP_ENV_FILE:-/opt/miniapp/.env}
+    depends_on:
+      db:
+        condition: service_healthy
+
   main_api:
-    build: ./main_api
-    container_name: main_api
+    build: ./backend/main_api
+    env_file:
+      - ${MINIAPP_ENV_FILE:-/opt/miniapp/.env}
+    depends_on:
+      migration:
+        condition: service_completed_successfully
+      minio:
+        condition: service_started
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
     ports:
-      - "5000:5000"
-    environment:
-      DATABASE_URL: postgresql+asyncpg://admin:password@db:5432/app
-      DB_SCHEMA: main_api
-      INFO_API_URL: http://info_api:5001
-      BASE_PRICE: 5000
-    depends_on:
-      - db
-      - info_api
-      - adminer
-    networks:
-      - app-network
-
-  info_api:
-    build: ./info_api
-    container_name: info_api
-    ports:
-      # Убрать мепинг портов
-      - "5001:5001"
-    environment:
-      DATABASE_URL: postgresql+asyncpg://admin:password@db:5432/app
-      DB_SCHEMA: info_api
-    depends_on:
-      - db
-    networks:
-      - app-network
-
-  info_migration:
-    build: ./info_api
-    container_name: info_migration
-    command: alembic upgrade head
-    environment:
-      DATABASE_URL: postgresql+asyncpg://admin:password@db:5432/app
-    depends_on:
-      - db
-    networks:
-      - app-network
-  main_migration:
-    build: ./main_api
-    container_name: main_migration
-    command: alembic upgrade head
-    environment:
-      DATABASE_URL: postgresql+asyncpg://admin:password@db:5432/app
-    depends_on:
-      - db
-    networks:
-      - app-network
-
-  frontend:
-    build: ./frontend
-    container_name: frontend
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./frontend/dist:/usr/share/nginx/html:ro
+      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ${MINIAPP_ROOT:-/opt/miniapp}/certs:/etc/nginx/certs:ro
     depends_on:
       - main_api
-      - info_api
-    networks:
-      - app-network
+      - minio
+    restart: unless-stopped
 
-  # nginx:
-  #   image: nginx:alpine
-  #   container_name: nginx
-  #   ports:
-  #     - "80:80"
-  #   volumes:
-  #     - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
-  #   depends_on:
-  #     - frontend
-  #     - agent_service
+  adminer:
+    image: adminer:latest
+    profiles: ["debug"]
+    env_file:
+      - ${MINIAPP_ENV_FILE:-/opt/miniapp/.env}
+    ports:
+      - "127.0.0.1:8081:8080"
+    depends_on:
+      db:
+        condition: service_healthy
 
 volumes:
   postgres_data:
-
-networks:
-  app-network:
+  minio_data:

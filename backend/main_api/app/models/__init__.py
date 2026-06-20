@@ -1,14 +1,10 @@
-from backend.main_api.app.models.users import Agent
-from app.models.calculations import Calculation
-from app.models.commissions import Commission
-from app.models.payouts import Payout
-from app.models.payout_commissions import PayoutCommission
-from app.models.calculation_companies import CalculationCompanies
-__all__ = [
-    "Agent",
-    "Calculation",
-    "Commission",
-    "Payout",
-    "PayoutCommission",
-    "CalculationCompanies"
-]
+from app.models.users import User
+from app.models.products import Product
+from app.models.product_photos import ProductPhoto
+from app.models.categories import Category
+from app.models.brands import Brand
+from app.models.sizes import Size
+from app.models.favorites import Favorite
+from app.models.search_suggestions import SearchSuggestion
+from app.models.user_events import UserEvent
+from app.models.sellers import Seller

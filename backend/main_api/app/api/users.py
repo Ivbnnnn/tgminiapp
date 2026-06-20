@@ -1,0 +1,13 @@
+from fastapi import APIRouter, Depends
+
+from app.deps import get_current_user
+from app.models.users import User
+from app.schemas.users import UserRead
+
+
+router = APIRouter(prefix="/users", tags=["Users"])
+
+
+@router.get("/me", response_model=UserRead)
+async def read_me(user: User = Depends(get_current_user)) -> User:
+    return user

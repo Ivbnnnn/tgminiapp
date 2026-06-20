@@ -1,54 +1,57 @@
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
-from fastapi import Depends, Request
+from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.clients.info_api import InfoAPIClient
-from app.core.config import settings
+
 from app.db.session import get_session
 from app.db.uow import UnitOfWork
-from app.services.agents import AgentService
-from app.services.calculation import CalculationService
-from app.services.commission import CommissionService
-from app.services.payouts import PayoutService
-import httpx
+from app.models.users import User
+from app.models.sellers import Seller
+from app.core.config import settings
+
 
 async def get_uow(
     session: AsyncSession = Depends(get_session),
-) -> UnitOfWork:
-    return UnitOfWork(session)
-
-
-def get_agent_service(
-    uow: UnitOfWork = Depends(get_uow),
-) -> AgentService:
-    return AgentService(uow)
-
-
-def get_calculation_service(
-    uow: UnitOfWork = Depends(get_uow),
-) -> CalculationService:
-    return CalculationService(uow)
-
-
-def get_commissions_service(
-    uow: UnitOfWork = Depends(get_uow),
-) -> CommissionService:
-    return CommissionService(uow)
-
-def get_payouts_service(
-    uow: UnitOfWork = Depends(get_uow),
-) -> PayoutService:
-    return PayoutService(uow)
+) -> AsyncGenerator[UnitOfWork, None]:
+    uow = UnitOfWork(session)
+    try:
+        yield uow
+        await uow.commit()
+    except Exception:
+        await uow.rollback()
+        raise
 
 
 def get_current_user_id(request: Request) -> int:
     return request.state.user_id
 
 
-async def get_info_api_client():
-    async with httpx.AsyncClient(
-        base_url=settings.INFO_API_URL,
-        timeout=10.0,
-    ) as client:
-        yield InfoAPIClient(client)
+async def get_current_user(
+    user_id: int = Depends(get_current_user_id),
+    uow: UnitOfWork = Depends(get_uow),
+) -> User:
+    user = await uow.users.read(user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+    return user
 
+
+async def get_current_seller(
+    user: User = Depends(get_current_user),
+    uow: UnitOfWork = Depends(get_uow),
+) -> Seller:
+    seller = await uow.sellers.read_by_telegram_id(user.telegram_id)
+    if seller is None or not seller.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Publishing is available only to approved sellers",
+        )
+    return seller
+
+
+async def get_current_admin(
+    user: User = Depends(get_current_user),
+) -> User:
+    if user.telegram_id not in settings.admin_telegram_ids:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    return user

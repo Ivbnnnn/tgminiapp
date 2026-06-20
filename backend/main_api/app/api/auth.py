@@ -1,116 +1,52 @@
-from fastapi import APIRouter, Depends, Request, Response, status, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 
-from app.schemas import AgentCreate, AgentLogin
-from app.services.agents import AgentService
-from app.deps import get_agent_service
+from app.core.config import settings
+from app.core.security import create_access_token, validate_telegram_init_data
+from app.db.uow import UnitOfWork
+from app.deps import get_uow
+from app.schemas.telegram import TelegramAuthResponse, TelegramInitDataRequest
 
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 
-def set_auth_cookies(
+@router.post("/telegram", response_model=TelegramAuthResponse)
+async def telegram_auth(
+    data: TelegramInitDataRequest,
     response: Response,
-    access_token: str,
-    refresh_token: str | None = None,
-) -> None:
+    uow: UnitOfWork = Depends(get_uow),
+) -> TelegramAuthResponse:
+    try:
+        validated_data = validate_telegram_init_data(data.init_data)
+    except ValueError as error:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(error),
+        ) from error
+
+    existing_user = await uow.users.read_by_telegram_id(validated_data.user.id)
+    user = await uow.users.upsert_from_telegram(validated_data.user)
+    await uow.sellers.link_user(
+        telegram_id=user.telegram_id,
+        user_id=user.id,
+        username=user.username,
+    )
+    access_token = create_access_token(user.id)
+
     response.set_cookie(
         key="access_token",
         value=access_token,
         httponly=True,
-        secure=False,
-        samesite="lax",
-        max_age=60 * 15,
+        secure=settings.COOKIE_SECURE,
+        samesite="none" if settings.COOKIE_SECURE else "lax",
+        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     )
-
-    if refresh_token is not None:
-        response.set_cookie(
-            key="refresh_token",
-            value=refresh_token,
-            httponly=True,
-            secure=False,
-            samesite="lax",
-            max_age=60 * 60 * 24 * 30,
-        )
-
-
-@router.post("/register", status_code=status.HTTP_201_CREATED)
-async def signup(
-    data: AgentCreate,
-    response: Response,
-    agent_service: AgentService = Depends(get_agent_service),
-):
-    tokens = await agent_service.signup(data)
-
-    set_auth_cookies(
-        response=response,
-        access_token=tokens["access_token"],
-        refresh_token=tokens["refresh_token"],
-    )
-
-    return {"detail": "Agent created"}
-
-
-@router.post("/login")
-async def login(
-    data: AgentLogin,
-    response: Response,
-    agent_service: AgentService = Depends(get_agent_service),
-):
-    tokens = await agent_service.login(data)
-
-    set_auth_cookies(
-        response=response,
-        access_token=tokens["access_token"],
-        refresh_token=tokens["refresh_token"],
-    )
-
-    return {"detail": "Logged in"}
-
-
-@router.post("/refresh")
-async def refresh(
-    request: Request,
-    response: Response,
-    agent_service: AgentService = Depends(get_agent_service),
-):
-    refresh_token = request.cookies.get("refresh_token")
-
-    if refresh_token is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Refresh token cookie missing",
-        )
-
-    access_token = await agent_service.refresh(refresh_token)
-
-    if access_token == "no":
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid refresh token",
-        )
-
-    set_auth_cookies(
-        response=response,
+    return TelegramAuthResponse(
         access_token=access_token,
+        is_new_user=existing_user is None,
     )
 
-    return {"detail": "Token refreshed"}
 
-
-@router.post("/logout")
-async def logout(response: Response):
-    response.delete_cookie(
-        key="access_token",
-        httponly=True,
-        secure=False,
-        samesite="lax",
-    )
-
-    response.delete_cookie(
-        key="refresh_token",
-        httponly=True,
-        secure=False,
-        samesite="lax",
-    )
-
-    return {"detail": "Logged out"}
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def logout(response: Response) -> None:
+    response.delete_cookie("access_token")

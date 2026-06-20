@@ -42,9 +42,11 @@ class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
     
     async def read_all(
         self,
-        id: int,
-    ) -> list[ModelType] | None:
-        stmt = select(self.model).where(self.model.id == id)
+        *,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[ModelType]:
+        stmt = select(self.model).limit(limit).offset(offset)
 
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
@@ -93,7 +95,7 @@ class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         id: int,
         data: UpdateSchemaType | dict[str, Any],
     ) -> ModelType | None:
-        values = self._to_dict(data, exclude_none=True)
+        values = self._to_dict(data, exclude_unset=True)
 
         if not values:
             return await self.read(id)
@@ -124,16 +126,9 @@ class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
     def _to_dict(
         self,
         data: BaseModel | dict[str, Any],
-        exclude_none: bool = False,
+        exclude_unset: bool = False,
     ) -> dict[str, Any]:
         if isinstance(data, BaseModel):
-            return data.model_dump(exclude_none=exclude_none)
-
-        if exclude_none:
-            return {
-                key: value
-                for key, value in data.items()
-                if value is not None
-            }
+            return data.model_dump(exclude_unset=exclude_unset)
 
         return data

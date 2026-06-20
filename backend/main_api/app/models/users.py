@@ -1,35 +1,40 @@
-from datetime import datetime, timezone, date
+from datetime import datetime
+from typing import Optional
 
-from sqlalchemy import Numeric, ForeignKey, Integer, String, Boolean, Date, false, DateTime 
-from sqlalchemy.orm import Mapped, mapped_column
-from decimal import Decimal
+from sqlalchemy import BigInteger, DateTime, String, func
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
 from app.db.base import Base
 
-def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
 
-class Agent(Base):
+class User(Base):
     __tablename__ = "users"
 
-    id: Mapped[int] = mapped_column(
-        Integer,
-        primary_key=True,
-        autoincrement=True,
-    )
-    telegram_id: Mapped[int] = mapped_column(Integer)
-    firstname: Mapped[str] = mapped_column(String(255), nullable=False)
-    middlename: Mapped[str] = mapped_column(String(255), nullable=True)
-    phone:Mapped[str] = mapped_column(String(20), nullable=False)
-    email:Mapped[str] = mapped_column(String(255), nullable=False)
-    password_hash:Mapped[str] = mapped_column(String(255), nullable=False)
-    passport_serial:Mapped[str] = mapped_column(String(20), nullable=False)
-    passport_number:Mapped[str] = mapped_column(String(20), nullable=False)
-    passport_issue_date:Mapped[datetime] = mapped_column(        DateTime(timezone=True),        nullable=True,    )
-    passport_issuer:Mapped[str] = mapped_column(String(255), nullable=False)
-    passport_code:Mapped[str] = mapped_column(String(20), nullable=False)
-    birthdate:Mapped[date] = mapped_column(        Date,        nullable=True,    )
-    status:Mapped[str] = mapped_column(String(255), nullable=False) #individual / self_employed / ip
-    inn:Mapped[str] = mapped_column(String(255), nullable=False)
-    ogrnip:Mapped[str] = mapped_column(String(255), nullable=False)
-    is_verified:Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    telegram_id: Mapped[int] = mapped_column(BigInteger, unique=True, nullable=False)
 
+    username: Mapped[Optional[str]] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    favorites: Mapped[list["Favorite"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    events: Mapped[list["UserEvent"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    seller: Mapped[Optional["Seller"]] = relationship(
+        back_populates="user",
+        uselist=False,
+    )

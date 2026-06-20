@@ -1,195 +1,96 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { agentApi, type AgentRead } from "../api/agentApi";
-import {
-  financeApi,
-  type Calculation,
-  type Commission,
-  type Payout,
-} from "../api/financeApi";
+import { useEffect, useState } from "react";
+import { useOutletContext } from "react-router-dom";
+import { marketplaceApi, type Product } from "../api/marketplaceApi";
+import { ProductCard } from "../components/ProductCard";
+import type { MarketplaceContext } from "../layouts/MarketplaceLayout";
 
-const money = new Intl.NumberFormat("ru-RU", {
-  style: "currency",
-  currency: "RUB",
-  maximumFractionDigits: 0,
-});
-
-function toNumber(value: string | number | null | undefined) {
-  const numeric = Number(value ?? 0);
-  return Number.isFinite(numeric) ? numeric : 0;
-}
-
-function getStatusLabel(status: string) {
-  const labels: Record<string, string> = {
-    calculated: "Рассчитан",
-    waiting_for_payment: "Ожидает оплаты",
-    paid: "Оплачен",
-    waiting_for_payout: "К выплате",
-    canceled: "Отменен",
-  };
-
-  return labels[status] ?? status;
-}
+const conditionFilters: Array<{ value: "" | Product["condition"]; label: string }> = [
+  { value: "", label: "Все" },
+  { value: "new", label: "Новое" },
+  { value: "used", label: "Б/у" },
+  { value: "vintage", label: "Винтаж" },
+  { value: "damaged", label: "С дефектом" },
+];
 
 export default function Home() {
-  const [agent, setAgent] = useState<AgentRead | null>(null);
-  const [calculations, setCalculations] = useState<Calculation[]>([]);
-  const [commissions, setCommissions] = useState<Commission[]>([]);
-  const [payouts, setPayouts] = useState<Payout[]>([]);
+  const { telegramUser } = useOutletContext<MarketplaceContext>();
+  const [query, setQuery] = useState("");
+  const [condition, setCondition] = useState<"" | Product["condition"]>("");
+  const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    async function loadDashboard() {
+    const timeout = window.setTimeout(async () => {
       setIsLoading(true);
-
-      const [agentResult, calculationsResult, commissionsResult, payoutsResult] =
-        await Promise.allSettled([
-          agentApi.me(),
-          financeApi.calculations(),
-          financeApi.commissions(),
-          financeApi.payouts(),
-        ]);
-
-      if (agentResult.status === "fulfilled") {
-        setAgent(agentResult.value);
+      setError("");
+      try {
+        setProducts(await marketplaceApi.products({
+          query: query.trim() || undefined,
+          condition: condition || undefined,
+        }));
+      } catch {
+        setError("Не удалось загрузить объявления");
+      } finally {
+        setIsLoading(false);
       }
-
-      if (calculationsResult.status === "fulfilled") {
-        setCalculations(calculationsResult.value);
-      }
-
-      if (commissionsResult.status === "fulfilled") {
-        setCommissions(commissionsResult.value);
-      }
-
-      if (payoutsResult.status === "fulfilled") {
-        setPayouts(payoutsResult.value);
-      }
-
-      if (
-        calculationsResult.status === "rejected" ||
-        commissionsResult.status === "rejected" ||
-        payoutsResult.status === "rejected"
-      ) {
-        setError("Часть данных недоступна для текущего статуса агента");
-      }
-
-      setIsLoading(false);
-    }
-
-    void loadDashboard();
-  }, []);
-
-  const commissionTotal = useMemo(
-    () =>
-      commissions
-        .filter((commission) => commission.status === "waiting_for_payout")
-        .reduce((sum, commission) => sum + toNumber(commission.amount), 0),
-    [commissions],
-  );
-
-  const payoutTotal = useMemo(
-    () =>
-      payouts.reduce((sum, payout) => sum + toNumber(payout.total_amount), 0),
-    [payouts],
-  );
-
-  const paidCalculations = calculations.filter(
-    (calculation) => calculation.status === "paid",
-  ).length;
-
-  const recentCalculations = calculations.slice(0, 5);
+    }, 280);
+    return () => window.clearTimeout(timeout);
+  }, [query, condition]);
 
   return (
-    <div className="grid gap-6">
-      <section className="rounded-lg border border-slate-200 bg-white p-5">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm text-slate-500">
-              {isLoading ? "Загрузка..." : "Добро пожаловать"}
-            </p>
-            <h2 className="mt-1 text-2xl font-semibold">
-              {agent
-                ? `${agent.lastname} ${agent.firstname}`
-                : "Агентский кабинет"}
-            </h2>
-          </div>
-          <Link
-            to="/calculations"
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
-          >
-            Новый расчет
-          </Link>
+    <main className="home-page">
+      <header className="home-header">
+        <div>
+          <span className="eyebrow">Добро пожаловать, {telegramUser.first_name}</span>
+          <h1>Что ищем сегодня?</h1>
+        </div>
+        {telegramUser.photo_url ? (
+          <img className="avatar" src={telegramUser.photo_url} alt="" />
+        ) : (
+          <div className="avatar avatar-fallback">{telegramUser.first_name.slice(0, 1)}</div>
+        )}
+      </header>
+
+      <div className="search-box">
+        <span aria-hidden="true">⌕</span>
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Куртка, кеды, винтаж…"
+          autoComplete="off"
+        />
+        {query && <button onClick={() => setQuery("")} aria-label="Очистить поиск">×</button>}
+      </div>
+
+      <div className="filter-strip">
+        {conditionFilters.map((filter) => (
+          <button
+            key={filter.value}
+            className={condition === filter.value ? "active" : ""}
+            onClick={() => setCondition(filter.value)}
+          >{filter.label}</button>
+        ))}
+      </div>
+
+      <section className="catalog-section">
+        <div className="section-heading">
+          <h2>{query ? `Результаты «${query}»` : "Свежие находки"}</h2>
+          {!isLoading && <span>{products.length}</span>}
         </div>
 
-        {error && (
-          <div className="mt-4 rounded-md bg-amber-50 p-3 text-sm text-amber-800">
-            {error}
+        {isLoading ? (
+          <div className="product-grid" aria-label="Загрузка">
+            {Array.from({ length: 6 }).map((_, index) => <div className="product-skeleton" key={index} />)}
           </div>
+        ) : error ? (
+          <div className="empty-state error-text">{error}</div>
+        ) : products.length ? (
+          <div className="product-grid">{products.map((product) => <ProductCard key={product.id} product={product} />)}</div>
+        ) : (
+          <div className="empty-state"><span>⌕</span><b>Ничего не нашли</b><p>Попробуйте изменить запрос или состояние вещи.</p></div>
         )}
       </section>
-
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-lg border border-slate-200 bg-white p-5">
-          <p className="text-sm text-slate-500">Расчетов</p>
-          <p className="mt-2 text-2xl font-semibold">{calculations.length}</p>
-        </div>
-        <div className="rounded-lg border border-slate-200 bg-white p-5">
-          <p className="text-sm text-slate-500">Оплачено</p>
-          <p className="mt-2 text-2xl font-semibold">{paidCalculations}</p>
-        </div>
-        <div className="rounded-lg border border-slate-200 bg-white p-5">
-          <p className="text-sm text-slate-500">К выплате</p>
-          <p className="mt-2 break-words text-2xl font-semibold">
-            {money.format(commissionTotal)}
-          </p>
-        </div>
-        <div className="rounded-lg border border-slate-200 bg-white p-5">
-          <p className="text-sm text-slate-500">Выплачено</p>
-          <p className="mt-2 break-words text-2xl font-semibold">
-            {money.format(payoutTotal)}
-          </p>
-        </div>
-      </section>
-
-      <section className="rounded-lg border border-slate-200 bg-white">
-        <div className="flex flex-col gap-2 border-b border-slate-200 p-5 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-lg font-semibold">Последние расчеты</h2>
-          <Link
-            to="/calculations"
-            className="text-sm font-medium text-blue-700 hover:text-blue-800"
-          >
-            Все расчеты
-          </Link>
-        </div>
-
-        <div className="divide-y divide-slate-100">
-          {recentCalculations.length === 0 ? (
-            <p className="p-5 text-sm text-slate-500">Расчетов пока нет</p>
-          ) : (
-            recentCalculations.map((calculation) => (
-              <div
-                key={calculation.id}
-                className="grid gap-3 p-5 md:grid-cols-[1fr_auto_auto] md:items-center"
-              >
-                <div>
-                  <p className="font-medium">Расчет #{calculation.id}</p>
-                  <p className="text-sm text-slate-500">
-                    Период: {calculation.use_period ?? "-"} мес.
-                  </p>
-                </div>
-                <p className="break-words font-semibold">
-                  {money.format(toNumber(calculation.policy_price))}
-                </p>
-                <span className="w-fit rounded-md bg-slate-100 px-2 py-1 text-sm text-slate-700">
-                  {getStatusLabel(calculation.status)}
-                </span>
-              </div>
-            ))
-          )}
-        </div>
-      </section>
-    </div>
+    </main>
   );
 }

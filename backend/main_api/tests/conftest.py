@@ -2,7 +2,6 @@ import os
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -42,30 +41,29 @@ async def override_get_session():
 app.dependency_overrides[get_session] = override_get_session
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session")
 async def prepare_database():
     async with engine.begin() as conn:
-        await conn.execute(text("DROP SCHEMA IF EXISTS main_api CASCADE"))
-        await conn.execute(text("CREATE SCHEMA main_api"))
+        await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
 
     yield
 
     async with engine.begin() as conn:
-        await conn.execute(text("DROP SCHEMA IF EXISTS main_api CASCADE"))
+        await conn.run_sync(Base.metadata.drop_all)
 
     await engine.dispose()
 
 
 @pytest.fixture
-async def session():
+async def session(prepare_database):
     async with TestingSessionLocal() as session:
         yield session
         await session.rollback()
 
 
 @pytest.fixture
-async def client():
+async def client(prepare_database):
     async with AsyncClient(
         transport=ASGITransport(app=app),
         base_url="http://test",
