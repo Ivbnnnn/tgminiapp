@@ -17,6 +17,7 @@ type TelegramWebApp = {
   expand: () => void;
   onEvent: (event: "themeChanged", callback: () => void) => void;
   offEvent: (event: "themeChanged", callback: () => void) => void;
+  openTelegramLink?: (url: string) => void;
 };
 
 declare global {
@@ -61,4 +62,11 @@ export function initializeTelegram(webApp: TelegramWebApp) {
   webApp.ready();
   webApp.expand();
   return () => webApp.offEvent("themeChanged", updateTheme);
+}
+
+export function openSellerChat(username: string) {
+  const url = `https://t.me/${username.replace(/^@/, "")}`;
+  const webApp = getTelegramWebApp();
+  if (webApp?.openTelegramLink) webApp.openTelegramLink(url);
+  else window.open(url, "_blank", "noopener,noreferrer");
 }

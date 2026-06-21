@@ -4,6 +4,7 @@ import { marketplaceApi, type Seller, type User } from "./api/marketplaceApi";
 import MarketplaceLayout from "./layouts/MarketplaceLayout";
 import Home from "./pages/Home";
 import Profile from "./pages/Profile";
+import ProductPage from "./pages/ProductPage";
 import { getTelegramWebApp, initializeTelegram, type TelegramUser } from "./telegram";
 
 export default function App() {
@@ -52,6 +53,7 @@ export default function App() {
       <Route element={<MarketplaceLayout context={context} />}>
         <Route index element={<Home />} />
         <Route path="profile" element={<Profile />} />
+        <Route path="products/:productId" element={<ProductPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

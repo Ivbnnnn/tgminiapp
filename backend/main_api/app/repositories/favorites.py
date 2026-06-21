@@ -51,7 +51,12 @@ class FavoriteRepository:
             select(Product)
             .join(Favorite, Favorite.product_id == Product.id)
             .where(Favorite.user_id == user_id)
-            .options(selectinload(Product.photos))
+            .options(
+                selectinload(Product.category),
+                selectinload(Product.brand),
+                selectinload(Product.size),
+                selectinload(Product.photos),
+            )
             .order_by(Favorite.created_at.desc())
             .limit(limit)
             .offset(offset)

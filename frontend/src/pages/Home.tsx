@@ -17,6 +17,7 @@ export default function Home() {
   const [query, setQuery] = useState("");
   const [condition, setCondition] = useState<"" | Product["condition"]>("");
   const [products, setProducts] = useState<Product[]>([]);
+  const [favoriteIds, setFavoriteIds] = useState<Set<number>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -25,10 +26,15 @@ export default function Home() {
       setIsLoading(true);
       setError("");
       try {
-        setProducts(await marketplaceApi.products({
-          query: query.trim() || undefined,
-          condition: condition || undefined,
-        }));
+        const [productList, favorites] = await Promise.all([
+          marketplaceApi.products({
+            query: query.trim() || undefined,
+            condition: condition || undefined,
+          }),
+          marketplaceApi.favorites(),
+        ]);
+        setProducts(productList);
+        setFavoriteIds(new Set(favorites.map((product) => product.id)));
       } catch {
         setError("Не удалось загрузить объявления");
       } finally {
@@ -86,7 +92,20 @@ export default function Home() {
         ) : error ? (
           <div className="empty-state error-text">{error}</div>
         ) : products.length ? (
-          <div className="product-grid">{products.map((product) => <ProductCard key={product.id} product={product} />)}</div>
+          <div className="product-grid">
+            {products.map((product) => (
+              <ProductCard
+                key={product.id}
+                product={product}
+                isFavorite={favoriteIds.has(product.id)}
+                onFavoriteChange={(id, value) => setFavoriteIds((current) => {
+                  const next = new Set(current);
+                  if (value) next.add(id); else next.delete(id);
+                  return next;
+                })}
+              />
+            ))}
+          </div>
         ) : (
           <div className="empty-state"><span>⌕</span><b>Ничего не нашли</b><p>Попробуйте изменить запрос или состояние вещи.</p></div>
         )}

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { marketplaceApi, type Product } from "../api/marketplaceApi";
 
 const money = new Intl.NumberFormat("ru-RU", {
@@ -17,35 +18,56 @@ const conditions: Record<Product["condition"], string> = {
 export function ProductCard({
   product,
   canDelete = false,
+  isFavorite = false,
   onDelete,
+  onFavoriteChange,
 }: {
   product: Product;
   canDelete?: boolean;
+  isFavorite?: boolean;
   onDelete?: (id: number) => Promise<void>;
+  onFavoriteChange?: (id: number, value: boolean) => void;
 }) {
-  const [isFavorite, setIsFavorite] = useState(false);
+  const [favorite, setFavorite] = useState(isFavorite);
+  const [isFavoriteLoading, setIsFavoriteLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const photo = [...product.photos].sort((a, b) => a.position - b.position)[0];
+  const photo = [...(product.photos ?? [])].sort((a, b) => a.position - b.position)[0];
+
+  useEffect(() => setFavorite(isFavorite), [isFavorite]);
+
+  async function toggleFavorite() {
+    if (isFavoriteLoading) return;
+    setIsFavoriteLoading(true);
+    try {
+      if (favorite) await marketplaceApi.removeFavorite(product.id);
+      else await marketplaceApi.addFavorite(product.id);
+      const nextValue = !favorite;
+      setFavorite(nextValue);
+      onFavoriteChange?.(product.id, nextValue);
+    } finally {
+      setIsFavoriteLoading(false);
+    }
+  }
 
   return (
     <article className="product-card">
       <div className="product-image-wrap">
-        {photo ? (
-          <img className="product-image" src={photo.url} alt={product.title} loading="lazy" />
-        ) : (
-          <div className="product-placeholder"><span>◇</span>Без фото</div>
-        )}
-        <span className="condition">{conditions[product.condition]}</span>
+        <Link to={`/products/${product.id}`} className="product-image-link">
+          {photo ? (
+            <img className="product-image" src={photo.url} alt={product.title} loading="lazy" />
+          ) : (
+            <div className="product-placeholder"><span>◇</span>Без фото</div>
+          )}
+          <span className="condition">{conditions[product.condition]}</span>
+        </Link>
         {!canDelete && (
           <button
             type="button"
-            className={`favorite-button ${isFavorite ? "is-active" : ""}`}
-            aria-label="Добавить в избранное"
-            onClick={async () => {
-              await marketplaceApi.addFavorite(product.id);
-              setIsFavorite(true);
-            }}
-          >{isFavorite ? "♥" : "♡"}</button>
+            className={`favorite-button ${favorite ? "is-active" : ""}`}
+            aria-label={favorite ? "Удалить из избранного" : "Добавить в избранное"}
+            disabled={isFavoriteLoading}
+            onClick={() => void toggleFavorite()}
+          >{favorite ? "♥" : "♡"}</button>
         )}
       </div>
       <div className="product-copy">
@@ -53,9 +75,11 @@ export function ProductCard({
           <strong>{money.format(Number(product.price))}</strong>
           {product.seller_telegram_username && <span>@{product.seller_telegram_username}</span>}
         </div>
-        <h2>{product.title}</h2>
-        {(product.color || product.material) && (
-          <p className="product-meta">{[product.color, product.material].filter(Boolean).join(" · ")}</p>
+        <Link to={`/products/${product.id}`} className="product-title-link"><h2>{product.title}</h2></Link>
+        {(product.brand || product.size || product.color || product.material) && (
+          <p className="product-meta">
+            {[product.brand?.name, product.size?.name, product.color, product.material].filter(Boolean).join(" · ")}
+          </p>
         )}
         {canDelete && (
           <button

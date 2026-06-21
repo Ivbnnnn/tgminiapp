@@ -8,6 +8,9 @@ export type User = {
 
 export type ProductPhoto = { id: number; url: string; position: number };
 
+export type Brand = { id: number; name: string; normalized_name: string };
+export type Size = { id: number; name: string; type: "clothes" | "shoes" | "accessory" };
+
 export type Product = {
   id: number;
   seller_id: number | null;
@@ -22,6 +25,8 @@ export type Product = {
   material?: string | null;
   created_at: string;
   photos: ProductPhoto[];
+  brand: Brand | null;
+  size: Size | null;
 };
 
 export type Seller = {
@@ -40,6 +45,8 @@ export type ProductCreate = {
   condition: Product["condition"];
   color?: string;
   material?: string;
+  brand_id?: number;
+  size_id?: number;
 };
 
 export type ProductSearch = {
@@ -78,6 +85,18 @@ export const marketplaceApi = {
     return (await api.get<Product[]>("/products", { params })).data;
   },
 
+  async product(productId: number) {
+    return (await api.get<Product>(`/products/${productId}`)).data;
+  },
+
+  async brands() {
+    return (await api.get<Brand[]>("/catalog/brands")).data;
+  },
+
+  async sizes() {
+    return (await api.get<Size[]>("/catalog/sizes")).data;
+  },
+
   async createProduct(data: ProductCreate) {
     return (await api.post<Product>("/products", data)).data;
   },
@@ -95,5 +114,17 @@ export const marketplaceApi = {
 
   async addFavorite(productId: number) {
     await api.post("/favorites", { product_id: productId });
+  },
+
+  async removeFavorite(productId: number) {
+    await api.delete(`/favorites/${productId}`);
+  },
+
+  async favorites() {
+    return (await api.get<Product[]>("/favorites")).data;
+  },
+
+  async favoriteStatus(productId: number) {
+    return (await api.get<{ is_favorite: boolean }>(`/favorites/${productId}`)).data.is_favorite;
   },
 };
