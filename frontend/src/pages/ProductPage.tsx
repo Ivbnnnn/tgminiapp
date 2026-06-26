@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Heart, ImageOff, X } from "lucide-react";
 import { useNavigate, useOutletContext, useParams } from "react-router-dom";
 import {
   marketplaceApi,
@@ -66,6 +67,11 @@ export default function ProductPage() {
     seller && (product.seller_id === seller.id || product.seller_telegram_id === telegramId),
   );
   const isHidden = product.status === "hidden";
+  const showGalleryControls = photos.length > 1;
+
+  function changePhoto(direction: -1 | 1) {
+    setActivePhoto((current) => (current + direction + photos.length) % photos.length);
+  }
 
   async function changeStatus(status: "active" | "hidden", asAdmin = false) {
     setIsActionLoading(true);
@@ -81,7 +87,7 @@ export default function ProductPage() {
   return (
     <main className="product-detail-page">
       <header className="detail-topbar">
-        <button onClick={() => navigate(-1)} aria-label="Назад">‹</button>
+        <button onClick={() => navigate(-1)} aria-label="Назад"><ArrowLeft aria-hidden="true" /></button>
         <span>Объявление</span>
         <button
           className={isFavorite ? "is-favorite" : ""}
@@ -91,16 +97,26 @@ export default function ProductPage() {
             else await marketplaceApi.addFavorite(product.id);
             setIsFavorite((value) => !value);
           }}
-        >{isFavorite ? "♥" : "♡"}</button>
+        ><Heart aria-hidden="true" fill={isFavorite ? "currentColor" : "none"} /></button>
       </header>
 
       <section className="detail-gallery">
         {photos[activePhoto] ? (
           <img src={photos[activePhoto].url} alt={product.title} />
         ) : (
-          <div className="detail-placeholder">◇<span>Фотографий пока нет</span></div>
+          <div className="detail-placeholder"><ImageOff aria-hidden="true" /><span>Фотографий пока нет</span></div>
         )}
-        {photos.length > 1 && (
+        {showGalleryControls && (
+          <>
+            <button className="gallery-arrow gallery-arrow-prev" onClick={() => changePhoto(-1)} aria-label="Previous photo">
+              <ChevronLeft aria-hidden="true" />
+            </button>
+            <button className="gallery-arrow gallery-arrow-next" onClick={() => changePhoto(1)} aria-label="Next photo">
+              <ChevronRight aria-hidden="true" />
+            </button>
+          </>
+        )}
+        {showGalleryControls && (
           <div className="gallery-dots">
             {photos.map((photo, index) => (
               <button key={photo.id} className={activePhoto === index ? "active" : ""} onClick={() => setActivePhoto(index)} aria-label={`Фото ${index + 1}`} />
@@ -219,7 +235,7 @@ function EditProduct({ product, onClose, onSaved }: { product: Product; onClose:
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true">
       <form className="product-form" onSubmit={submit}>
-        <div className="form-heading"><div><span className="eyebrow">Редактирование</span><h2>{product.title}</h2></div><button type="button" onClick={onClose}>×</button></div>
+        <div className="form-heading"><div><span className="eyebrow">Редактирование</span><h2>{product.title}</h2></div><button type="button" onClick={onClose} aria-label="Закрыть"><X aria-hidden="true" /></button></div>
         <label>Название<input name="title" defaultValue={product.title} maxLength={255} required /></label>
         <div className="form-row">
           <label>Бренд<select name="brand_id" defaultValue={product.brand?.id ?? ""}><option value="">Не указан</option>{brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}</select></label>

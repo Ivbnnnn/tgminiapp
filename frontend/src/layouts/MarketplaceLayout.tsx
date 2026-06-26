@@ -1,3 +1,4 @@
+import { Search, UserRound } from "lucide-react";
 import { NavLink, Outlet } from "react-router-dom";
 import type { TelegramUser } from "../telegram";
 import type { Seller } from "../api/marketplaceApi";
@@ -15,10 +16,10 @@ export default function MarketplaceLayout({ context }: { context: MarketplaceCon
       <div className="page-container"><Outlet context={context} /></div>
       <nav className="bottom-navigation" aria-label="Основная навигация">
         <NavLink to="/" end className={({ isActive }) => isActive ? "active" : ""}>
-          <span className="nav-icon">⌕</span><span>Поиск</span>
+          <span className="nav-icon"><Search aria-hidden="true" /></span><span>Поиск</span>
         </NavLink>
         <NavLink to="/profile" className={({ isActive }) => isActive ? "active" : ""}>
-          <span className="nav-icon">○</span><span>Кабинет</span>
+          <span className="nav-icon"><UserRound aria-hidden="true" /></span><span>Кабинет</span>
         </NavLink>
       </nav>
     </div>

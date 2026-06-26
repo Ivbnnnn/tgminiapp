@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Search, SearchX, X } from "lucide-react";
 import { useOutletContext } from "react-router-dom";
 import { marketplaceApi, type Product } from "../api/marketplaceApi";
 import { ProductCard } from "../components/ProductCard";
@@ -59,14 +60,14 @@ export default function Home() {
       </header>
 
       <div className="search-box">
-        <span aria-hidden="true">⌕</span>
+        <span aria-hidden="true"><Search /></span>
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Куртка, кеды, винтаж…"
           autoComplete="off"
         />
-        {query && <button onClick={() => setQuery("")} aria-label="Очистить поиск">×</button>}
+        {query && <button onClick={() => setQuery("")} aria-label="Очистить поиск"><X aria-hidden="true" /></button>}
       </div>
 
       <div className="filter-strip">
@@ -107,7 +108,7 @@ export default function Home() {
             ))}
           </div>
         ) : (
-          <div className="empty-state"><span>⌕</span><b>Ничего не нашли</b><p>Попробуйте изменить запрос или состояние вещи.</p></div>
+          <div className="empty-state"><span><SearchX aria-hidden="true" /></span><b>Ничего не нашли</b><p>Попробуйте изменить запрос или состояние вещи.</p></div>
         )}
       </section>
     </main>

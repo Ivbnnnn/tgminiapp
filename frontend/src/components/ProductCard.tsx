@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Heart, ImageOff } from "lucide-react";
 import { Link } from "react-router-dom";
 import { marketplaceApi, type Product } from "../api/marketplaceApi";
 
@@ -56,7 +57,7 @@ export function ProductCard({
           {photo ? (
             <img className="product-image" src={photo.url} alt={product.title} loading="lazy" />
           ) : (
-            <div className="product-placeholder"><span>◇</span>Без фото</div>
+            <div className="product-placeholder"><span><ImageOff aria-hidden="true" /></span>Без фото</div>
           )}
           <span className="condition">{conditions[product.condition]}</span>
         </Link>
@@ -67,7 +68,7 @@ export function ProductCard({
             aria-label={favorite ? "Удалить из избранного" : "Добавить в избранное"}
             disabled={isFavoriteLoading}
             onClick={() => void toggleFavorite()}
-          >{favorite ? "♥" : "♡"}</button>
+          ><Heart aria-hidden="true" fill={favorite ? "currentColor" : "none"} /></button>
         )}
       </div>
       <div className="product-copy">

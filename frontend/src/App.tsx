@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { ExternalLink } from "lucide-react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { marketplaceApi, type Seller, type User } from "./api/marketplaceApi";
 import MarketplaceLayout from "./layouts/MarketplaceLayout";
@@ -55,7 +56,7 @@ export default function App() {
   }, []);
 
   if (isOutsideTelegram) {
-    return <CenterMessage><span className="gate-icon">↗</span><b>Откройте внутри Telegram</b><span>Маркетплейс доступен только как Mini App.</span></CenterMessage>;
+    return <CenterMessage><span className="gate-icon"><ExternalLink aria-hidden="true" /></span><b>Откройте внутри Telegram</b><span>Маркетплейс доступен только как Mini App.</span></CenterMessage>;
   }
   if (isLoading) return <CenterMessage><span className="loader" />Загружаем витрину…</CenterMessage>;
   if (error || !user || !telegramUser) return <CenterMessage><b>Что-то пошло не так</b><span>{error}</span></CenterMessage>;
