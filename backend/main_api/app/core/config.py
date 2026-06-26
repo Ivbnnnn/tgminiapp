@@ -2,6 +2,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    DEV_MODE: bool = False
+    DEV_TELEGRAM_ID: int = 999000001
+    DEV_USERNAME: str = "local_seller"
+    DEV_FIRST_NAME: str = "Local"
+
     DATABASE_URL: str
 
     TELEGRAM_BOT_TOKEN: str = ""

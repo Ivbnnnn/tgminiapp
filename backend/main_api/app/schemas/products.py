@@ -14,6 +14,7 @@ from app.schemas.sizes import SizeRead
 ProductCondition = Literal["new", "used", "vintage", "damaged"]
 ProductGender = Literal["male", "female", "unisex", "kids"]
 ProductStatus = Literal["active", "reserved", "sold", "hidden", "deleted"]
+ProductModerationStatus = Literal["active", "hidden"]
 
 
 class ProductBase(BaseModel):
@@ -41,7 +42,7 @@ class ProductCreateRepository(ProductBase):
     seller_id: int = Field(gt=0)
     seller_telegram_id: int = Field(gt=0)
     seller_telegram_username: str | None = Field(default=None, max_length=255)
-    status: ProductStatus = "active"
+    status: ProductStatus | None = "active"
 
 
 class ProductUpdate(BaseModel):
@@ -58,6 +59,10 @@ class ProductUpdate(BaseModel):
     is_unique: bool | None = None
     stock_quantity: int | None = Field(default=None, ge=0)
     status: ProductStatus | None = None
+
+
+class ProductModerationUpdate(BaseModel):
+    status: ProductModerationStatus
 
 
 class ProductRead(ProductBase, ORMModel):

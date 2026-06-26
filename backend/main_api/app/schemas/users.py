@@ -26,5 +26,6 @@ class UserRead(ORMModel):
     id: int
     telegram_id: int
     username: str | None
+    is_admin: bool = False
     created_at: datetime
     updated_at: datetime

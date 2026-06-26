@@ -50,7 +50,7 @@ class FavoriteRepository:
         stmt = (
             select(Product)
             .join(Favorite, Favorite.product_id == Product.id)
-            .where(Favorite.user_id == user_id)
+            .where(Favorite.user_id == user_id, Product.status == "active")
             .options(
                 selectinload(Product.category),
                 selectinload(Product.brand),

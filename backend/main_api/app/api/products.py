@@ -1,11 +1,20 @@
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile, status
 
 from app.db.uow import UnitOfWork
-from app.deps import get_current_seller, get_uow
+from app.core.config import settings
+from app.deps import get_current_admin, get_current_seller, get_current_user, get_uow
 from app.models.products import Product
 from app.models.sellers import Seller
+from app.models.users import User
 from app.schemas.product_photos import ProductPhotoCreate, ProductPhotoRead
-from app.schemas.products import ProductCreate, ProductDetail, ProductFilters, ProductRead, ProductUpdate
+from app.schemas.products import (
+    ProductCreate,
+    ProductDetail,
+    ProductFilters,
+    ProductModerationUpdate,
+    ProductRead,
+    ProductUpdate,
+)
 from app.services.storage import object_storage
 
 
@@ -22,10 +31,36 @@ async def list_products(
     return await uow.products.search(filters, limit=limit, offset=offset)
 
 
+@router.get("/mine", response_model=list[ProductDetail])
+async def list_my_products(
+    seller: Seller = Depends(get_current_seller),
+    uow: UnitOfWork = Depends(get_uow),
+):
+    return await uow.products.search(
+        ProductFilters(
+            seller_telegram_id=seller.telegram_id,
+            status=None,
+        ),
+        limit=100,
+    )
+
+
 @router.get("/{product_id}", response_model=ProductDetail)
-async def read_product(product_id: int, uow: UnitOfWork = Depends(get_uow)):
+async def read_product(
+    product_id: int,
+    user: User = Depends(get_current_user),
+    uow: UnitOfWork = Depends(get_uow),
+):
     product = await uow.products.read_detail(product_id)
-    return _found(product)
+    product = _found(product)
+    if product.status != "active" and user.telegram_id not in settings.admin_telegram_ids:
+        seller = await uow.sellers.read_by_telegram_id(user.telegram_id)
+        if seller is None or (
+            product.seller_id != seller.id
+            and product.seller_telegram_id != seller.telegram_id
+        ):
+            raise HTTPException(status_code=404, detail="Product not found")
+    return product
 
 
 @router.post("", response_model=ProductRead, status_code=status.HTTP_201_CREATED)
@@ -54,14 +89,36 @@ async def update_product(
 @router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_product(
     product_id: int,
-    seller: Seller = Depends(get_current_seller),
+    user: User = Depends(get_current_user),
     uow: UnitOfWork = Depends(get_uow),
 ) -> Response:
-    await _owned_product(product_id, seller, uow)
+    product = _found(await uow.products.read(product_id))
+    if user.telegram_id not in settings.admin_telegram_ids:
+        seller = await uow.sellers.read_by_telegram_id(user.telegram_id)
+        if (
+            seller is None
+            or not seller.is_active
+            or (product.seller_id != seller.id and product.seller_telegram_id != seller.telegram_id)
+        ):
+            raise HTTPException(status_code=403, detail="Only the seller or admin can delete this product")
     for photo in await uow.product_photos.read_for_product(product_id):
         await object_storage.delete_by_url(photo.url)
     await uow.products.delete(product_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.patch("/{product_id}/moderation", response_model=ProductRead)
+async def moderate_product(
+    product_id: int,
+    data: ProductModerationUpdate,
+    _: User = Depends(get_current_admin),
+    uow: UnitOfWork = Depends(get_uow),
+):
+    product = await uow.products.update(
+        product_id,
+        ProductUpdate(status=data.status),
+    )
+    return _found(product)
 
 
 @router.post(

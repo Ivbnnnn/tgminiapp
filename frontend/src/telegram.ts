@@ -8,15 +8,25 @@ export type TelegramUser = {
   photo_url?: string;
 };
 
+type SafeAreaInset = { top: number; right: number; bottom: number; left: number };
+type TelegramEvent =
+  | "themeChanged"
+  | "viewportChanged"
+  | "safeAreaChanged"
+  | "contentSafeAreaChanged";
+
 type TelegramWebApp = {
   initData: string;
   initDataUnsafe: { user?: TelegramUser };
   colorScheme: "light" | "dark";
   themeParams: TelegramThemeParams;
+  platform?: string;
+  safeAreaInset?: SafeAreaInset;
+  contentSafeAreaInset?: SafeAreaInset;
   ready: () => void;
   expand: () => void;
-  onEvent: (event: "themeChanged", callback: () => void) => void;
-  offEvent: (event: "themeChanged", callback: () => void) => void;
+  onEvent: (event: TelegramEvent, callback: () => void) => void;
+  offEvent: (event: TelegramEvent, callback: () => void) => void;
   openTelegramLink?: (url: string) => void;
 };
 
@@ -55,13 +65,39 @@ export function applyTelegramTheme(webApp: TelegramWebApp) {
   root.dataset.theme = webApp.colorScheme;
 }
 
+export function applyTelegramSafeArea(webApp: TelegramWebApp) {
+  const root = document.documentElement;
+  const safe = webApp.safeAreaInset;
+  const content = webApp.contentSafeAreaInset;
+  const androidFallback = !safe && !content && webApp.platform === "android" ? 56 : 0;
+  const values = {
+    top: Math.max(safe?.top ?? 0, content?.top ?? 0, androidFallback),
+    right: Math.max(safe?.right ?? 0, content?.right ?? 0),
+    bottom: Math.max(safe?.bottom ?? 0, content?.bottom ?? 0),
+    left: Math.max(safe?.left ?? 0, content?.left ?? 0),
+  };
+  Object.entries(values).forEach(([side, value]) => {
+    root.style.setProperty(`--app-content-safe-${side}`, `${value}px`);
+  });
+}
+
 export function initializeTelegram(webApp: TelegramWebApp) {
   const updateTheme = () => applyTelegramTheme(webApp);
+  const updateSafeArea = () => applyTelegramSafeArea(webApp);
   updateTheme();
+  updateSafeArea();
   webApp.onEvent("themeChanged", updateTheme);
+  webApp.onEvent("viewportChanged", updateSafeArea);
+  webApp.onEvent("safeAreaChanged", updateSafeArea);
+  webApp.onEvent("contentSafeAreaChanged", updateSafeArea);
   webApp.ready();
   webApp.expand();
-  return () => webApp.offEvent("themeChanged", updateTheme);
+  return () => {
+    webApp.offEvent("themeChanged", updateTheme);
+    webApp.offEvent("viewportChanged", updateSafeArea);
+    webApp.offEvent("safeAreaChanged", updateSafeArea);
+    webApp.offEvent("contentSafeAreaChanged", updateSafeArea);
+  };
 }
 
 export function openSellerChat(username: string) {

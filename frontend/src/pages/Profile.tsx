@@ -24,7 +24,9 @@ export default function Profile() {
     setIsLoading(true);
     try {
       const [ownProducts, favoriteProducts] = await Promise.all([
-        marketplaceApi.products({ seller_telegram_id: telegramId }),
+        seller
+          ? marketplaceApi.myProducts()
+          : marketplaceApi.products({ seller_telegram_id: telegramId }),
         marketplaceApi.favorites(),
       ]);
       setProducts(ownProducts);
@@ -34,7 +36,7 @@ export default function Profile() {
     }
   };
 
-  useEffect(() => { void loadProducts(); }, [telegramId]);
+  useEffect(() => { void loadProducts(); }, [telegramId, seller]);
 
   const visibleProducts = activeTab === "listings" ? products : favorites;
 

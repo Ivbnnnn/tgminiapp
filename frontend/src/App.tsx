@@ -17,27 +17,40 @@ export default function App() {
 
   useEffect(() => {
     const webApp = getTelegramWebApp();
-    if (!webApp) {
-      setIsOutsideTelegram(true);
-      setIsLoading(false);
-      return;
-    }
-    const cleanup = initializeTelegram(webApp);
-    const launchUser = webApp.initDataUnsafe.user;
-    if (!launchUser) {
-      setError("Telegram не передал данные пользователя");
-      setIsLoading(false);
-      return cleanup;
-    }
-    setTelegramUser(launchUser);
-    marketplaceApi.authenticate(webApp.initData)
-      .then(() => Promise.all([marketplaceApi.me(), marketplaceApi.sellerMe()]))
-      .then(([currentUser, currentSeller]) => {
+    const cleanup = webApp ? initializeTelegram(webApp) : undefined;
+
+    async function bootstrap() {
+      try {
+        let launchUser: TelegramUser;
+        if (webApp) {
+          const telegramLaunchUser = webApp.initDataUnsafe.user;
+          if (!telegramLaunchUser) throw new Error("Telegram did not provide user data");
+          await marketplaceApi.authenticate(webApp.initData);
+          launchUser = telegramLaunchUser;
+        } else {
+          try {
+            launchUser = await marketplaceApi.devAuthenticate();
+          } catch {
+            setIsOutsideTelegram(true);
+            return;
+          }
+        }
+
+        setTelegramUser(launchUser);
+        const [currentUser, currentSeller] = await Promise.all([
+          marketplaceApi.me(),
+          marketplaceApi.sellerMe(),
+        ]);
         setUser(currentUser);
         setSeller(currentSeller);
-      })
-      .catch(() => setError("Не удалось подтвердить запуск через Telegram"))
-      .finally(() => setIsLoading(false));
+      } catch {
+        setError("Не удалось подтвердить запуск через Telegram");
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    void bootstrap();
     return cleanup;
   }, []);
 
@@ -47,7 +60,12 @@ export default function App() {
   if (isLoading) return <CenterMessage><span className="loader" />Загружаем витрину…</CenterMessage>;
   if (error || !user || !telegramUser) return <CenterMessage><b>Что-то пошло не так</b><span>{error}</span></CenterMessage>;
 
-  const context = { telegramUser, telegramId: user.telegram_id, seller };
+  const context = {
+    telegramUser,
+    telegramId: user.telegram_id,
+    seller,
+    isAdmin: user.is_admin,
+  };
   return (
     <Routes>
       <Route element={<MarketplaceLayout context={context} />}>

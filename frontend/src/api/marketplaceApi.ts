@@ -1,9 +1,11 @@
 import { api, setAccessToken } from "./axios";
+import type { TelegramUser } from "../telegram";
 
 export type User = {
   id: number;
   telegram_id: number;
   username: string | null;
+  is_admin: boolean;
 };
 
 export type ProductPhoto = { id: number; url: string; position: number };
@@ -49,6 +51,12 @@ export type ProductCreate = {
   size_id?: number;
 };
 
+export type ProductUpdate = Omit<Partial<ProductCreate>, "brand_id" | "size_id"> & {
+  brand_id?: number | null;
+  size_id?: number | null;
+  status?: "active" | "reserved" | "sold" | "hidden" | "deleted";
+};
+
 export type ProductSearch = {
   query?: string;
   condition?: Product["condition"];
@@ -63,6 +71,15 @@ export const marketplaceApi = {
       initData,
     });
     setAccessToken(response.data.access_token);
+  },
+
+  async devAuthenticate() {
+    const response = await api.post<{
+      access_token: string;
+      telegram_user: TelegramUser;
+    }>("/auth/dev");
+    setAccessToken(response.data.access_token);
+    return response.data.telegram_user;
   },
 
   async me() {
@@ -89,6 +106,10 @@ export const marketplaceApi = {
     return (await api.get<Product>(`/products/${productId}`)).data;
   },
 
+  async myProducts() {
+    return (await api.get<Product[]>("/products/mine")).data;
+  },
+
   async brands() {
     return (await api.get<Brand[]>("/catalog/brands")).data;
   },
@@ -110,6 +131,14 @@ export const marketplaceApi = {
 
   async deleteProduct(productId: number) {
     await api.delete(`/products/${productId}`);
+  },
+
+  async updateProduct(productId: number, data: ProductUpdate) {
+    return (await api.patch<Product>(`/products/${productId}`, data)).data;
+  },
+
+  async moderateProduct(productId: number, status: "active" | "hidden") {
+    return (await api.patch<Product>(`/products/${productId}/moderation`, { status })).data;
   },
 
   async addFavorite(productId: number) {

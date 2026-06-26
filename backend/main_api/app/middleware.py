@@ -5,7 +5,14 @@ from starlette.responses import JSONResponse
 from app.core.security import get_user_id_from_access_token
 
 
-PUBLIC_PATHS = {"/health", "/docs", "/redoc", "/openapi.json", "/auth/telegram"}
+PUBLIC_PATHS = {
+    "/health",
+    "/docs",
+    "/redoc",
+    "/openapi.json",
+    "/auth/telegram",
+    "/auth/dev",
+}
 
 
 class AuthMiddleware(BaseHTTPMiddleware):

@@ -6,6 +6,7 @@ export type MarketplaceContext = {
   telegramUser: TelegramUser;
   telegramId: number;
   seller: Seller | null;
+  isAdmin: boolean;
 };
 
 export default function MarketplaceLayout({ context }: { context: MarketplaceContext }) {
