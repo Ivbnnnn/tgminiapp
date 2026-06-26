@@ -89,7 +89,7 @@ class ProductFilters(BaseModel):
     size_id: int | None = Field(default=None, gt=0)
     condition: ProductCondition | None = None
     gender: ProductGender | None = None
-    status: ProductStatus = "active"
+    status: ProductStatus | None = "active"
     min_price: Decimal | None = Field(default=None, ge=0)
     max_price: Decimal | None = Field(default=None, ge=0)
     seller_telegram_id: int | None = Field(default=None, gt=0)
